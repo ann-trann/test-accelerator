@@ -15,6 +15,7 @@ import androidx.cardview.widget.CardView;
 import java.util.ArrayList;
 import java.util.List;
 
+
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
     private SensorManager sensorManager;
     private Sensor accelerometer;
