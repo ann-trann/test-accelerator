@@ -15,7 +15,6 @@ import androidx.cardview.widget.CardView;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
     private SensorManager sensorManager;
     private Sensor accelerometer;
@@ -34,6 +33,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     // Để lọc nhiễu, chỉ xét các giá trị cách nhau một khoảng thời gian
     private static final long MIN_TIME_BETWEEN_DETECTIONS = 1000; // 1 giây
     private long lastDetectionTime = 0;
+
+
+    // Biến lưu giá trị trọng lực
+    private float[] gravity = new float[3];
+    private static final float alpha = 0.8f; // Hệ số lọc, bạn có thể điều chỉnh
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,13 +120,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             return;
         }
 
-        float x = event.values[0];
-        float y = event.values[1];
-        float z = event.values[2];
+        // Áp dụng bộ lọc để lấy giá trị trọng lực
+        gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0];
+        gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
+        gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2];
 
+        // Tính gia tốc ròng bằng cách loại bỏ trọng lực
+        float x = event.values[0] - gravity[0];
+        float y = event.values[1] - gravity[1];
+        float z = event.values[2] - gravity[2];
+
+//        // Tính độ lớn của gia tốc ròng
+//        float netAcceleration = (float) Math.sqrt(netAccelX * netAccelX + netAccelY * netAccelY + netAccelZ * netAccelZ);
+
+
+//        float x = event.values[0];
+//        float y = event.values[1];
+//        float z = event.values[2];
+//
         // Tính toán độ lớn của gia tốc
-        float acceleration = (float) Math.sqrt(x*x + y*y + z*z);
-        float netAcceleration = Math.abs(acceleration - 9.81f);
+        float netAcceleration = (float) Math.sqrt(x*x + y*y + z*z);
+//        float netAcceleration = Math.abs(acceleration - 9.81f);
 
         // Hiển thị giá trị gia tốc chi tiết
         String details = String.format(
@@ -131,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         "Trục Z: %.2f m/s²\n" +
                         "Độ lớn gia tốc: %.2f m/s²\n" +
                         "Net Acceleration: %.2f m/s²",
-                x, y, z, acceleration, netAcceleration
+                x, y, z, netAcceleration
         );
 
         accelerationText.setText(String.format("Gia tốc: %.2f m/s²", netAcceleration));
