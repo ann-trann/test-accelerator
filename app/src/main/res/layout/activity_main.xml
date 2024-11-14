@@ -61,7 +61,8 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:contentDescription="Danh sách ổ gà đã phát hiện">
 
         <LinearLayout
             android:id="@+id/pothole_container"

@@ -130,17 +130,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         float y = event.values[1] - gravity[1];
         float z = event.values[2] - gravity[2];
 
-//        // Tính độ lớn của gia tốc ròng
-//        float netAcceleration = (float) Math.sqrt(netAccelX * netAccelX + netAccelY * netAccelY + netAccelZ * netAccelZ);
 
-
-//        float x = event.values[0];
-//        float y = event.values[1];
-//        float z = event.values[2];
-//
         // Tính toán độ lớn của gia tốc
         float netAcceleration = (float) Math.sqrt(x*x + y*y + z*z);
-//        float netAcceleration = Math.abs(acceleration - 9.81f);
 
         // Hiển thị giá trị gia tốc chi tiết
         String details = String.format(
@@ -148,7 +140,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                         "Trục X: %.2f m/s²\n" +
                         "Trục Y: %.2f m/s²\n" +
                         "Trục Z: %.2f m/s²\n" +
-                        "Độ lớn gia tốc: %.2f m/s²\n" +
                         "Net Acceleration: %.2f m/s²",
                 x, y, z, netAcceleration
         );
