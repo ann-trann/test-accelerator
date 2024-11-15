@@ -7,12 +7,12 @@ public class PotholeData {
     private final float totalAcceleration;
     private final long timestamp;
 
-    public PotholeData(float x, float y, float z, float total, long time) {
+    public PotholeData(float x, float y, float z, float total, long timestamp) {
         this.accelerationX = x;
         this.accelerationY = y;
         this.accelerationZ = z;
         this.totalAcceleration = total;
-        this.timestamp = time;
+        this.timestamp = timestamp;
     }
 
     public String getFormattedTime() {

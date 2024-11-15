@@ -12,6 +12,12 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
+
+import org.tensorflow.lite.Interpreter;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,19 +32,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private LinearLayout potholeContainer;
     private boolean isCollecting = false;
     private List<PotholeData> potholes = new ArrayList<>();
+    private Interpreter tflite; // TensorFlow Lite interpreter
 
-    // Ngưỡng để xác định ổ gà (đơn vị: m/s²)
-    private static final float POTHOLE_THRESHOLD = 15.0f;
-
-    // Để lọc nhiễu, chỉ xét các giá trị cách nhau một khoảng thời gian
-    private static final long MIN_TIME_BETWEEN_DETECTIONS = 1000; // 1 giây
-    private long lastDetectionTime = 0;
-
+    // Đường dẫn đến file mô hình .tflite
+    private static final String MODEL_PATH = "pothole_detection_model.tflite";
 
     // Biến lưu giá trị trọng lực
     private float[] gravity = new float[3];
-    private static final float alpha = 0.8f; // Hệ số lọc, bạn có thể điều chỉnh
-
+    private static final float alpha = 0.8f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,13 +54,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         stopButton = findViewById(R.id.stop_button);
         potholeContainer = findViewById(R.id.pothole_container);
 
-        // Thiết lập trạng thái ban đầu của các nút
-        stopButton.setEnabled(false);
-
         // Khởi tạo sensor manager và accelerometer
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        }
+
+        // Load mô hình TFLite
+        try {
+            tflite = new Interpreter(loadModelFile());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
         // Thiết lập sự kiện cho các nút
@@ -85,33 +90,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         sensorManager.unregisterListener(this);
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (isCollecting) {
-            sensorManager.unregisterListener(this);
+    private MappedByteBuffer loadModelFile() throws IOException {
+        try (FileInputStream fileInputStream = new FileInputStream(getAssets().openFd(MODEL_PATH).getFileDescriptor())) {
+            FileChannel fileChannel = fileInputStream.getChannel();
+            long startOffset = getAssets().openFd(MODEL_PATH).getStartOffset();
+            long declaredLength = getAssets().openFd(MODEL_PATH).getDeclaredLength();
+            return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (isCollecting && accelerometer != null) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-        }
-    }
-
-    private void addPotholeCard(PotholeData pothole) {
-        // Tạo card view mới cho ổ gà
-        CardView card = (CardView) LayoutInflater.from(this)
-                .inflate(R.layout.pothole_card, potholeContainer, false);
-
-        // Thiết lập nội dung cho card
-        TextView potholeText = card.findViewById(R.id.pothole_text);
-        potholeText.setText(pothole.getDetails());
-
-        // Thêm card vào container
-        potholeContainer.addView(card, 0); // Thêm vào đầu danh sách
     }
 
     @Override
@@ -130,37 +115,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         float y = event.values[1] - gravity[1];
         float z = event.values[2] - gravity[2];
 
+        // Đưa dữ liệu vào mô hình để dự đoán
+        float[] input = {x, y, z};
+        float[][] output = new float[1][1];
+        tflite.run(input, output);
 
-        // Tính toán độ lớn của gia tốc
-        float netAcceleration = (float) Math.sqrt(x*x + y*y + z*z);
-
-        // Hiển thị giá trị gia tốc chi tiết
-        String details = String.format(
-                "Chi tiết gia tốc:\n" +
-                        "Trục X: %.2f m/s²\n" +
-                        "Trục Y: %.2f m/s²\n" +
-                        "Trục Z: %.2f m/s²\n" +
-                        "Net Acceleration: %.2f m/s²",
-                x, y, z, netAcceleration
-        );
-
-        accelerationText.setText(String.format("Gia tốc: %.2f m/s²", netAcceleration));
-        detailsText.setText(details);
-
-        // Kiểm tra có đi qua ổ gà không
-        long currentTime = System.currentTimeMillis();
-        if (netAcceleration > POTHOLE_THRESHOLD &&
-                (currentTime - lastDetectionTime) > MIN_TIME_BETWEEN_DETECTIONS) {
-            // Tạo đối tượng PotholeData mới
-            PotholeData pothole = new PotholeData(x, y, z, netAcceleration, currentTime);
+        // Kiểm tra xem mô hình dự đoán có phát hiện ổ gà không
+        if (output[0][0] > 0.5f) { // ngưỡng xác suất phát hiện ổ gà
+            PotholeData pothole = new PotholeData(x, y, z, output[0][0], event.timestamp);
             potholes.add(pothole);
-
-            // Thêm card mới
             addPotholeCard(pothole);
-
             statusText.setText("PHÁT HIỆN Ổ GÀ!");
-            lastDetectionTime = currentTime;
-        } else if ((currentTime - lastDetectionTime) > 1000) {
+        } else {
             statusText.setText("Đang theo dõi...");
         }
     }
@@ -168,5 +134,23 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Không cần xử lý
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (tflite != null) {
+            tflite.close(); // Giải phóng TFLite Interpreter
+        }
+    }
+
+    private void addPotholeCard(PotholeData pothole) {
+        CardView card = (CardView) LayoutInflater.from(this)
+                .inflate(R.layout.pothole_card, potholeContainer, false);
+
+        TextView potholeText = card.findViewById(R.id.pothole_text);
+        potholeText.setText(pothole.getDetails());
+
+        potholeContainer.addView(card, 0);
     }
 }
